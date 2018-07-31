@@ -1,6 +1,7 @@
 package com.wuan.weekly.controller;
 
-import java.util.Date;
+import java.util.Calendar;
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,18 +25,21 @@ public class homePageController {
     @Autowired
     private homePageService hps;
 
+
+
     @ResponseBody
-    @RequestMapping("/main")
+    @RequestMapping(value = "/main", method = RequestMethod.POST)
     public Main home(@RequestBody Map<String, Object> map) throws ParamFormatException {
         int userId = (int) map.get("userId");
         if (userId < 0) {
-        	throw new ParamFormatException("用户ID不正确！");
-		}
+            throw new ParamFormatException("用户ID不正确！");
+        }
+
         return hps.m(userId);
     }
 
     @ResponseBody
-    @RequestMapping("/leave")
+    @RequestMapping(value = "/leave", method = RequestMethod.POST)
     public Info leave(@RequestBody Leave li) throws ParamFormatException, NullTextException {
         //请了多少周假
         int weekNum = li.getWeekNum();
@@ -45,12 +49,12 @@ public class homePageController {
         int userId = li.getUserId();
         //分组id
         int groupId = li.getGroupId();
-        if (weekNum < 0 || userId < 0 || groupId < 0) {
-        	throw new ParamFormatException("用户ID或分组ID不正确或请假周数不正确！");
-		}
+        if (weekNum <= 0 || userId < 0 || groupId < 0) {
+            throw new ParamFormatException("用户ID或分组ID不正确或请假周数不正确！");
+        }
         if (reason == null || "".equals(reason)) {
-        	throw new NullTextException("必填项不能为空！");
-		}
+            throw new NullTextException("必填项不能为空！");
+        }
         //生成请假周报
         Leave[] leaveReport = createLeaveReport(weekNum, reason, userId, groupId);
         try {
@@ -58,22 +62,26 @@ public class homePageController {
         } catch (Exception e) {
             //如果在往数据库里更新请假出现问题，事务回滚
             //当前周数
-        	e.printStackTrace();
-            int thisWeek = (int) ((new Date().getTime() - Utils.FIRSTDAY.getTime()) / (7 * 24 * 60 * 60 * 1000));
-            hps.cancelLeave(userId, thisWeek);
+            e.printStackTrace();
+            //当前周数
+            int thisWeek = (int) (((Calendar.getInstance(Locale.CHINA).getTime()).getTime() - Utils.FIRSTDAY.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            hps.cancelLeave(userId, groupId, thisWeek);
             return new Info("请假失败", 500);
         }
         //成功请假
         return new Info("请假成功", 200);
     }
+
     @ResponseBody
     @RequestMapping(value = "/cancelLeave", method = RequestMethod.POST)
-    public Info cancelLeave(@RequestBody Map<String, Object> param) {
+    public Info cancelLeave(@RequestBody Map<String, Object> param) throws ParamFormatException {
         int userId = (int) param.get("userId");
+        int groupId = (int) param.get("groupId");
+        checkParam(userId, groupId);
         //当前周数
-        int thisWeek = (int) ((new Date().getTime() - Utils.FIRSTDAY.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        int thisWeek = (int) (((Calendar.getInstance(Locale.CHINA).getTime()).getTime() - Utils.FIRSTDAY.getTime()) / (7 * 24 * 60 * 60 * 1000));
         try {
-            hps.cancelLeave(userId, thisWeek);
+            hps.cancelLeave(userId, groupId, thisWeek);
         } catch (Exception e) {
             e.printStackTrace();
             return new Info("取消请假失败", 500);
@@ -82,17 +90,25 @@ public class homePageController {
     }
 
 
+    private void checkParam(Integer... integers) throws ParamFormatException {
+        for (Integer i : integers) {
+            if (i == null || i <= 0) {
+                throw new ParamFormatException("用户ID或分组ID不正确！");
+            }
+        }
+
+    }
+
     private Leave[] createLeaveReport(int weekNum, String reason, int userId, int groupId) {
         Leave[] leaveReport = new Leave[weekNum];
         //周报状态  3为请假
         int status = 3;
         //当前周数
-        int thisWeek = (int) ((new Date().getTime() - Utils.FIRSTDAY.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        int thisWeek = (int) (((Calendar.getInstance(Locale.CHINA).getTime()).getTime() - Utils.FIRSTDAY.getTime()) / (7 * 24 * 60 * 60 * 1000));
         for (int i = 0; i < weekNum; i++) {
             leaveReport[i] = new Leave(thisWeek, userId, groupId, status, reason);
             thisWeek++;
         }
         return leaveReport;
     }
-
 }

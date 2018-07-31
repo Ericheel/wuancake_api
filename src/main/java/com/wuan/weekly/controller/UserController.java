@@ -5,8 +5,11 @@ import com.wuan.weekly.entity.JsonBean;
 import com.wuan.weekly.entity.JsonRequestBody;
 import com.wuan.weekly.entity.User;
 import com.wuan.weekly.entity.WaGroup;
+import com.wuan.weekly.mapper.WaGroupMapper;
+import com.wuan.weekly.service.WeeklyService;
 import com.wuan.weekly.service.imple.UserServiceImpl;
 import com.wuan.weekly.util.MD5Utils;
+import com.wuan.weekly.util.Utils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,6 +27,11 @@ public class UserController {
     public static final String SESSION_NAME = "9527";
     @Autowired
     private UserServiceImpl userService;
+    @Autowired
+    private WaGroupMapper waGroupMapper;
+
+    @Autowired
+    private WeeklyService weeklyService;
 
     @RequestMapping(value = "regist")
     public @ResponseBody
@@ -52,12 +60,10 @@ public class UserController {
             jsonBean.setUserName(user.getUserName());
         } catch (Exception e) {
             jsonBean.setInfoText(e.getMessage());
-            response.setStatus(500);
             jsonBean.setInfoCode("500");
             return jsonBean;
         }
         jsonBean.setInfoText("注册成功");
-        response.setStatus(200);
         jsonBean.setInfoCode("200");
         return jsonBean;
     }
@@ -83,18 +89,15 @@ public class UserController {
                 jsonBean.setUserId(userId);
                 jsonBean.setGroupId(groupId);
             } catch (Exception e) {
-                response.setStatus(500);
                 jsonBean.setInfoText(e.getMessage());
                 jsonBean.setInfoCode("500");
                 return jsonBean;
             }
         } else {
-            response.setStatus(500);
             jsonBean.setInfoText("没有这个用户");
             jsonBean.setInfoCode("500");
             return jsonBean;
         }
-        response.setStatus(200);
         jsonBean.setInfoCode("200");
         jsonBean.setInfoText("分组选择成功");
 
@@ -115,14 +118,12 @@ public class UserController {
         if (user == null) {
             jsonBean.setInfoText("邮箱错误");
             jsonBean.setInfoCode("500");
-            response.setStatus(500);
             return jsonBean;
         } else {
             boolean verify = MD5Utils.verify(password, user.getPassword());
             if (!verify) {
                 jsonBean.setInfoText("密码错误");
                 jsonBean.setInfoCode("500");
-                response.setStatus(500);
                 return jsonBean;
             } else {
                 Integer userId = user.getId();
@@ -134,7 +135,15 @@ public class UserController {
                 if (groupId == 0) {
                     jsonBean.setInfoText("登录成功未选择分组");
                 }
-                response.setStatus(200);
+                //微信小程序需要，返回当前周数
+                jsonBean.setCurrWeek(Utils.getMaxWeekNum());
+                //微信小程序需要，返回当前周数的周报状态
+                Integer statusByUserIdAndMaxWeekNum = weeklyService.findStatusByUserIdAndMaxWeekNum(userId, Utils.getMaxWeekNum());
+                if (statusByUserIdAndMaxWeekNum == null) {
+                    statusByUserIdAndMaxWeekNum = 1;
+                }
+                jsonBean.setStatus(statusByUserIdAndMaxWeekNum);
+                jsonBean.setGroupName(waGroupMapper.getGroupNameByGroupId(groupId));
                 jsonBean.setInfoCode("200");
                 return jsonBean;
             }
@@ -154,10 +163,8 @@ public class UserController {
         } catch (Exception e) {
             jsonBean.setInfoCode("500");
             jsonBean.setInfoText("请求失败");
-            response.setStatus(500);
             return jsonBean;
         }
-        response.setStatus(200);
         jsonBean.setInfoCode("200");
         return jsonBean;
     }
